@@ -16,6 +16,7 @@ import android.widget.Toast;
 public class MainActivity extends ActionBarActivity {
 
     private final String TAG = "MainActivity";
+    public static final String DIFFICULTY_KEY = "diff";
 
     private Button btnPlayGame, btnHighScore;
     private String[] diffLabel = {"ง่าย", "ปานกลาง", "ยาก"};
@@ -39,7 +40,7 @@ public class MainActivity extends ActionBarActivity {
                         Log.i(TAG, "ผู้ใช้เลือก " + String.valueOf(which));
 
                         Intent intent = new Intent(MainActivity.this, GameActivity.class);
-                        intent.putExtra("diff", which);
+                        intent.putExtra(DIFFICULTY_KEY, which);
                         startActivity(intent);
                     }
                 });
