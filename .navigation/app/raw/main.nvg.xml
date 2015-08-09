@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<navigationModel
+  ns = "http://schemas.android.com?import=com.android.tools.idea.editors.navigation.model.*">
+  <locations  
+    class = "java.util.ArrayList">
+    <statePointEntry>
+      <state      
+        class = "com.android.tools.idea.editors.navigation.model.ActivityState"      
+        className = "com.example.wordquizgame.MainActivity"/>
+      <point      
+        x = "880"      
+        y = "332"/>
+    </statePointEntry>
+    <statePointEntry>
+      <state      
+        class = "com.android.tools.idea.editors.navigation.model.ActivityState"      
+        className = "com.example.wordquizgame.GameActivity"/>
+      <point      
+        x = "1828"      
+        y = "360"/>
+    </statePointEntry>
+  </locations>
+</navigationModel>
