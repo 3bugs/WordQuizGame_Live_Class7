@@ -1,18 +1,32 @@
 package com.example.wordquizgame;
 
+import android.app.AlertDialog;
+import android.content.ContentValues;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.AssetManager;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.drawable.Drawable;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TableLayout;
+import android.widget.TableRow;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.example.wordquizgame.db.DatabaseHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,7 +56,10 @@ public class GameActivity extends ActionBarActivity {
 
     private Random random;
     private Handler handler;
+    private Animation shakeAnimation;
 
+    private DatabaseHelper dbHelper;
+    private SQLiteDatabase database;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,7 +102,20 @@ public class GameActivity extends ActionBarActivity {
         random = new Random();
         handler = new Handler();
 
+        shakeAnimation = AnimationUtils.loadAnimation(this, R.anim.shake);
+        shakeAnimation.setRepeatCount(3);
+
+        dbHelper = new DatabaseHelper(this);
+        database = dbHelper.getWritableDatabase();
+
         getImageFileName();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        database.close();
+        dbHelper.close();
     }
 
     private void getImageFileName() {
@@ -185,6 +215,133 @@ public class GameActivity extends ActionBarActivity {
         for (String word : choiceWords) {
             Log.i(TAG, word);
         }
+
+        createChoiceButtons();
+    }
+
+    private void createChoiceButtons() {
+        for (int row = 0; row < buttonTableLayout.getChildCount(); row++) {
+            TableRow tr = (TableRow) buttonTableLayout.getChildAt(row);
+            tr.removeAllViews();
+        }
+
+        LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+        for (int row = 0; row < numChoices / 2; row++) {
+            TableRow tr = (TableRow) buttonTableLayout.getChildAt(row);
+
+            for (int column = 0; column < 2; column++) {
+                Button guessButton = (Button) inflater.inflate(R.layout.guess_button, tr, false);
+                //guessButton.setText(choiceWords.get((row * 2) + column));
+                guessButton.setText(choiceWords.remove(0));
+                guessButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        submitGuess((Button) v);
+                    }
+                });
+
+                tr.addView(guessButton);
+            }
+        }
+
+    }
+
+    private void submitGuess(Button guessButton) {
+        String guessWord = guessButton.getText().toString();
+        String answer = getWord(answerFileName);
+
+        totalGuesses++;
+
+        // ตอบถูก
+        if (guessWord.equals(answer)) {
+            score++;
+
+            MediaPlayer mp = MediaPlayer.create(this, R.raw.applause);
+            mp.start();
+
+            String msg = answer + " ถูกต้องนะคร้าบบบบ";
+            answerTextView.setText(msg);
+            answerTextView.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
+
+            disableAllButtons();
+
+            // ตอบถูก และครบทุกข้อแล้ว (จบเกม)
+            if (score == TOTAL_QUESTIONS) {
+                saveScore();
+
+                msg = String.format(
+                        "จำนวนครั้งที่ทาย: %d\nเปอร์เซ็นต์ความถูกต้อง: %.1f",
+                        totalGuesses,
+                        (100 * TOTAL_QUESTIONS) / (double) totalGuesses
+                );
+
+                AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+                dialog.setTitle("สรุปผล");
+                dialog.setMessage(msg);
+                dialog.setCancelable(false);
+                dialog.setPositiveButton("เริ่มเกมใหม่", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        startQuiz();
+                    }
+                });
+                dialog.setNegativeButton("กลับหน้าหลัก", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        finish();
+                    }
+                });
+                dialog.show();
+            }
+            // ตอบถูก แต่ยังเล่นไม่ครบ
+            else {
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        loadNextQuestion();
+                    }
+                }, 2000);
+            }
+        }
+        // ตอบผิด
+        else {
+            MediaPlayer mp = MediaPlayer.create(this, R.raw.fail3);
+            mp.start();
+
+            questionImageView.setAnimation(shakeAnimation);
+            guessButton.setAnimation(shakeAnimation);
+
+            String msg = "ผิดครับ ลองใหม่นะครับ";
+            answerTextView.setText(msg);
+            answerTextView.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
+
+            guessButton.setEnabled(false);
+        }
+    }
+
+    private void saveScore() {
+        double percentScore = (100 * TOTAL_QUESTIONS) / (double) totalGuesses;
+
+        ContentValues cv = new ContentValues();
+        cv.put(DatabaseHelper.COL_SCORE, percentScore);
+        cv.put(DatabaseHelper.COL_DIFFICULTY, difficulty);
+
+        long insertResult = database.insert(DatabaseHelper.TABLE_NAME, null, cv);
+
+        if (insertResult == -1) {
+            Log.e(TAG, "Error inserting data into database.");
+        }
+    }
+
+    private void disableAllButtons() {
+        for (int row = 0; row < buttonTableLayout.getChildCount(); row++) {
+            TableRow tr = (TableRow) buttonTableLayout.getChildAt(row);
+
+            for (int column = 0; column < tr.getChildCount(); column++) {
+                tr.getChildAt(column).setEnabled(false);
+            }
+        }
     }
 
     private String getWord(String fileName) {
@@ -212,5 +369,19 @@ public class GameActivity extends ActionBarActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.i(TAG, "onResume");
+        Music.play(this, R.raw.game);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.i(TAG, "onPause");
+        Music.stop();
     }
 }
